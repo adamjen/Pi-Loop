@@ -247,14 +247,21 @@ def status_line(label, colour, state, preview_lines, inject_count, score=0):
 def main():
     ap = argparse.ArgumentParser(description="Pi harness tmux loop + file duplicate monitor")
     ap.add_argument("--session",   default="1")
-    ap.add_argument("--session2",  default=None)
+    ap.add_argument("--session2",  default="0")
     ap.add_argument("--watch-dir", default=os.path.expanduser("~/.pi/projects"))
     ap.add_argument("--interval",  type=float, default=4.0)
-    ap.add_argument("--threshold", type=int,   default=4)
+    ap.add_argument("--threshold", type=int,   default=3)
     ap.add_argument("--cooldown",  type=float, default=20.0)
     ap.add_argument("--min-new",   type=int,   default=3)
     ap.add_argument("--dry-run",   action="store_true")
+    ap.add_argument("--debug",     default=None, metavar="FILE",
+                    help="write debug log to FILE e.g. /tmp/monitor_debug.log")
     args = ap.parse_args()
+
+    dbg = open(args.debug, "w", buffering=1) if args.debug else None
+    def dlog(*parts):
+        if dbg:
+            dbg.write(now_str() + " " + " ".join(str(p) for p in parts) + "\n")
 
     sessions = [args.session]
     if args.session2:
@@ -344,13 +351,19 @@ def main():
                 pane_prev_lines[key]  = curr
                 pane_new_preview[key] = new_lines
 
+                dlog(f"PANE {key} new_lines({len(new_lines)}):")
+                for l in new_lines:
+                    dlog(f"  | {l}")
+
                 if len(new_lines) < args.min_new:
+                    dlog(f"  -> skip (< min_new {args.min_new})")
                     if pane_state[key] not in ("inject", "cooldown", "file_dup"):
                         pane_state[key] = "ok"
                     continue
 
                 score, _ = rolling_repeat_score(new_lines, pane_hash_hist[key], chunk=4)
                 pane_score[key] = score
+                dlog(f"  -> score={score} threshold={args.threshold}")
 
                 for i in range(max(0, len(new_lines) - 4 + 1)):
                     block = "\n".join(new_lines[i:i+4])
@@ -359,6 +372,7 @@ def main():
                 now_t = time.time()
                 if score >= args.threshold:
                     if now_t - pane_last_inj[key] > args.cooldown:
+                        dlog(f"  -> INJECT (score={score})")
                         pane_state[key]    = "inject"
                         pane_last_inj[key] = now_t
                         pane_injects[key] += 1
@@ -366,8 +380,10 @@ def main():
                         if not args.dry_run:
                             send_keys(sess, win, pane, STOP_PROMPT)
                     else:
+                        dlog(f"  -> COOLDOWN")
                         pane_state[key] = "cooldown"
                 else:
+                    dlog(f"  -> ok")
                     if pane_state[key] not in ("file_dup",):
                         pane_state[key] = "ok"
 
