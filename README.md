@@ -1,4 +1,4 @@
-# pi-loop-monitor
+# pi-loop
 
 A terminal monitor for [pi](https://github.com/pi-ai/pi) multi-agent harness sessions. Watches tmux panes and file output for looping behaviour and automatically injects a stop prompt to break the agent out.
 
