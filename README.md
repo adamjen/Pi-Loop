@@ -1,4 +1,4 @@
-# pi-loop
+# Pi-loop
 
 A terminal monitor for [pi](https://github.com/pi-ai/pi) multi-agent harness sessions. Watches tmux panes and file output for looping behaviour and automatically injects a stop prompt to break the agent out.
 
@@ -7,6 +7,8 @@ Built for use with local LLM inference stacks (llama.cpp / llama-swap) where age
 ![Python](https://img.shields.io/badge/python-3.8+-blue) ![Platform](https://img.shields.io/badge/platform-linux-lightgrey) ![License](https://img.shields.io/badge/license-MIT-green)
 
 ---
+
+![Pi Loop Monitor](https://raw.githubusercontent.com/adamjen/Pi-Loop/main/pi-loop.png)
 
 ## The problem
 
@@ -57,17 +59,14 @@ No dependencies beyond the Python standard library.
 ## Usage
 
 ```bash
-# basic — watch session 1 (spawned agents)
-python pi_loop_monitor.py --session 1
+# recommended — watch both sessions with file detection
+python pi_loop_monitor.py --session 1 --session2 0 --watch-dir ~/.pi/projects --threshold 3
 
-# watch both sessions
-python pi_loop_monitor.py --session 1 --session2 0
+# dry run first to calibrate — detect but don't inject
+python pi_loop_monitor.py --session 1 --session2 0 --dry-run
 
-# with file duplicate detection
-python pi_loop_monitor.py --session 1 --watch-dir ~/.pi/projects
-
-# dry run — detect but don't inject (use this to calibrate first)
-python pi_loop_monitor.py --session 1 --dry-run
+# session 1 only (spawned agents)
+python pi_loop_monitor.py --session 1 --threshold 3
 ```
 
 ---
@@ -135,6 +134,35 @@ Do not rewrite it. Check what you have already created and continue to the next 
 ```
 
 States: `● ok` / `⚠ LOOP` / `⚡ INJECTED` / `⏸ cooldown` / `○ idle`
+
+---
+
+## Debugging false positives
+
+If the monitor is triggering when it shouldn't, run with `--debug` to log every poll cycle to a file:
+
+```bash
+python pi_loop_monitor.py --session 1 --session2 0 --dry-run --debug /tmp/monitor_debug.log
+```
+
+In a second terminal:
+
+```bash
+tail -f /tmp/monitor_debug.log
+```
+
+Each poll logs exactly what lines were considered new, the repeat score, and whether it would have injected:
+
+```
+23:14:01 PANE 1:0.0 new_lines(6):
+23:14:01   | Phase 2: creating visual-director.md
+23:14:01   | Operation aborted
+23:14:01   | Phase 2: creating visual-director.md
+23:14:01   -> score=3 threshold=3
+23:14:01   -> INJECT (score=3)
+```
+
+Use this to identify whether the trigger is legitimate looping or a false positive from chrome lines slipping through the filter. If you see chrome lines in the log, add them to the `CHROME_PATTERNS` list at the top of the script.
 
 ---
 
